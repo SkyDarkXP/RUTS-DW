@@ -1,0 +1,40 @@
+import { Injectable } from '@angular/core';
+import { BehaviorSubject } from 'rxjs';
+
+@Injectable({ providedIn: 'root' })
+export class BookmarkService {
+  private KEY = 'ruts_bookmarks';
+  private _ids = new BehaviorSubject<Set<number>>(new Set());
+  bookmarkIds$ = this._ids.asObservable();
+
+  constructor() {
+    const saved = localStorage.getItem(this.KEY);
+    if (saved) {
+      try { this._ids.next(new Set(JSON.parse(saved))); } catch {}
+    }
+  }
+
+  private save(): void {
+    localStorage.setItem(this.KEY, JSON.stringify(Array.from(this._ids.value)));
+  }
+
+  toggle(id: number): void {
+    const set = new Set(this._ids.value);
+    set.has(id) ? set.delete(id) : set.add(id);
+    this._ids.next(set);
+    this.save();
+  }
+
+  isBookmarked(id: number): boolean {
+    return this._ids.value.has(id);
+  }
+
+  getAll(): number[] {
+    return Array.from(this._ids.value);
+  }
+
+  clear(): void {
+    this._ids.next(new Set());
+    localStorage.removeItem(this.KEY);
+  }
+}

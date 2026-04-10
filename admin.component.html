@@ -1,0 +1,74 @@
+<div class="ps-slider" #sliderEl
+  (touchstart)="onTouchStart($event)"
+  (touchend)="onTouchEnd($event)">
+
+  <!-- Blurred background -->
+  <div class="ps-bg" [style.backgroundImage]="'url(' + imgSrc(current) + ')'"></div>
+
+  <!-- Prev button -->
+  <button class="ps-btn ps-btn--prev" (click)="goPrev()" aria-label="Previous">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m15 18-6-6 6-6"/>
+    </svg>
+  </button>
+
+  <!-- Slides -->
+  <div class="ps-stage" *ngIf="slides.length >= 3">
+
+    <!-- PREVIOUS -->
+    <div class="ps-slide ps-slide--prev">
+      <div class="ps-slide__inner">
+        <div class="ps-img-wrap">
+          <img class="ps-img" [src]="imgSrc(prev)" [alt]="prev?.title_th" />
+        </div>
+      </div>
+    </div>
+
+    <!-- CURRENT -->
+    <div class="ps-slide ps-slide--current">
+      <div class="ps-slide__inner">
+        <div class="ps-img-wrap">
+          <img class="ps-img" [src]="imgSrc(current)" [alt]="current?.title_th" />
+        </div>
+      </div>
+      <!-- Text info -->
+      <div class="ps-info">
+        <div class="ps-info__inner">
+          <div class="ps-text ps-text--title"><span>{{ current?.title_th }}</span></div>
+          <div class="ps-text ps-text--subtitle"><span>{{ current?.faculty_name_th || '' }}</span></div>
+          <div class="ps-text ps-text--desc">
+            <span>{{ current?.degree_th || 'ปริญญาตรี' }} · {{ current?.duration_years || 4 }} ปี</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEXT -->
+    <div class="ps-slide ps-slide--next">
+      <div class="ps-slide__inner">
+        <div class="ps-img-wrap">
+          <img class="ps-img" [src]="imgSrc(next)" [alt]="next?.title_th" />
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Next button -->
+  <button class="ps-btn ps-btn--next" (click)="goNext()" aria-label="Next">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m9 18 6-6-6-6"/>
+    </svg>
+  </button>
+
+  <!-- Dot indicators -->
+  <div class="ps-dots" *ngIf="courses.length > 1">
+    <span class="ps-dot" *ngFor="let c of courses; let i = index"
+      [class.ps-dot--active]="i === currentIdx"
+      (click)="currentIdx = i; buildSlides()">
+    </span>
+  </div>
+
+</div>

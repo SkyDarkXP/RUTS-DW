@@ -1,0 +1,134 @@
+<div class="users-panel">
+
+  <!-- Header -->
+  <div class="panel-header">
+    <div>
+      <h2 class="panel-title">จัดการผู้ใช้งาน</h2>
+      <p class="panel-sub">{{ users.length }} บัญชีในระบบ</p>
+    </div>
+    <button class="btn-primary" (click)="openAdd()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14m-7-7h14"/></svg>
+      เพิ่มผู้ใช้
+    </button>
+  </div>
+
+  <!-- Info note -->
+  <div class="info-note">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>
+    role <strong>admin</strong> — เข้าถึงได้ทุกส่วน &nbsp;|&nbsp; role <strong>editor</strong> — แก้ไขหลักสูตรและคณะได้ แต่ไม่สามารถจัดการผู้ใช้
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-row" *ngIf="loading">
+    <div class="mini-spinner"></div>
+  </div>
+
+  <!-- Users Table -->
+  <div class="table-wrap" *ngIf="!loading">
+    <table class="users-table">
+      <thead>
+        <tr>
+          <th>ผู้ใช้</th>
+          <th>Username</th>
+          <th>Role</th>
+          <th>วันที่สร้าง</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let u of users" [class.me]="u.id === currentUser?.id">
+          <td>
+            <div class="user-cell">
+              <div class="user-avatar" [class.admin-av]="u.role === 'admin'">{{ (u.full_name || u.username)[0] }}</div>
+              <span class="user-fullname">{{ u.full_name || '—' }}</span>
+              <span class="me-tag" *ngIf="u.id === currentUser?.id">คุณ</span>
+            </div>
+          </td>
+          <td><code class="username-code">{{ u.username }}</code></td>
+          <td>
+            <span class="role-badge" [class.admin]="u.role === 'admin'" [class.editor]="u.role === 'editor'">
+              {{ roleLabel(u.role) }}
+            </span>
+          </td>
+          <td class="date-cell">{{ formatDate(u.created_at) }}</td>
+          <td>
+            <div class="row-actions">
+              <button class="icon-btn edit" (click)="openEdit(u)" title="แก้ไข">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button class="icon-btn delete" (click)="confirmDelete(u)" [disabled]="u.id === currentUser?.id" title="ลบ">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6m4-6v6"/><path d="M9 6V4h6v2"/></svg>
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="empty-users" *ngIf="users.length === 0">ยังไม่มีผู้ใช้ในระบบ</div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast-stack">
+    <div class="toast" *ngFor="let t of toasts" [class.success]="t.type==='success'" [class.error]="t.type==='error'">
+      {{ t.message }}
+    </div>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <div class="modal-overlay" *ngIf="showModal" (click)="showModal=false">
+    <div class="modal-box" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{ modalMode === 'add' ? 'เพิ่มผู้ใช้ใหม่' : 'แก้ไขผู้ใช้' }}</h3>
+        <button class="modal-close" (click)="showModal=false">✕</button>
+      </div>
+      <form [formGroup]="userForm" class="user-form">
+        <div class="form-group">
+          <label>ชื่อ-นามสกุล *</label>
+          <input formControlName="full_name" type="text" placeholder="ชื่อเต็ม">
+        </div>
+        <div class="form-group">
+          <label>Username *</label>
+          <input formControlName="username" type="text" placeholder="ชื่อผู้ใช้" [readonly]="modalMode === 'edit'">
+        </div>
+        <div class="form-group">
+          <label>Role *</label>
+          <select formControlName="role">
+            <option value="editor">editor — ผู้แก้ไข</option>
+            <option value="admin">admin — ผู้ดูแลระบบ</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ modalMode === 'add' ? 'รหัสผ่าน *' : 'รหัสผ่านใหม่ (เว้นว่างเพื่อไม่เปลี่ยน)' }}</label>
+          <div class="pw-wrap">
+            <input formControlName="password" [type]="showPassword ? 'text' : 'password'" placeholder="{{ modalMode === 'add' ? 'อย่างน้อย 6 ตัวอักษร' : 'เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน' }}">
+            <button type="button" class="pw-toggle" (click)="showPassword=!showPassword">{{ showPassword ? '🙈' : '👁' }}</button>
+          </div>
+        </div>
+        <div class="form-group" *ngIf="userForm.value.password">
+          <label>ยืนยันรหัสผ่าน *</label>
+          <input formControlName="confirm_password" [type]="showPassword ? 'text' : 'password'" placeholder="พิมพ์รหัสผ่านอีกครั้ง">
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn-cancel" (click)="showModal=false">ยกเลิก</button>
+        <button class="btn-primary" (click)="save()" [disabled]="userForm.invalid">
+          {{ modalMode === 'add' ? 'เพิ่มผู้ใช้' : 'บันทึก' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirm -->
+  <div class="modal-overlay" *ngIf="deleteTarget" (click)="deleteTarget=null">
+    <div class="modal-box confirm-box" (click)="$event.stopPropagation()">
+      <div class="confirm-icon">⚠️</div>
+      <h3>ลบผู้ใช้?</h3>
+      <p>ต้องการลบบัญชี <strong>{{ deleteTarget.username }}</strong> ({{ deleteTarget.full_name }}) ออกจากระบบ?</p>
+      <div class="modal-footer">
+        <button class="btn-cancel" (click)="deleteTarget=null">ยกเลิก</button>
+        <button class="btn-danger" (click)="doDelete()">ลบ</button>
+      </div>
+    </div>
+  </div>
+
+</div>

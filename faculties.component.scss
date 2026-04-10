@@ -1,0 +1,311 @@
+import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { CourseService } from '../../services/course.service';
+import { AuthService } from '../../services/auth.service';
+import { Course, Faculty, AuthUser } from '../../models/course.model';
+
+type Tab = 'dashboard' | 'courses' | 'faculties' | 'users';
+type Toast = { message: string; type: 'success' | 'error' };
+
+@Component({
+  selector: 'app-admin',
+  templateUrl: './admin.component.html',
+  styleUrls: ['./admin.component.scss']
+})
+export class AdminComponent implements OnInit {
+  activeTab: Tab = 'dashboard';
+  courses: Course[] = [];
+  faculties: Faculty[] = [];
+  loading = false;
+  user: AuthUser | null = null;
+
+  // Modal
+  showModal = false;
+  showPreview = false;
+  modalMode: 'add' | 'edit' = 'add';
+  editingId: number | null = null;
+
+  // Faculty modal
+  showFacultyModal = false;
+  facultyModalMode: 'add' | 'edit' = 'add';
+  editingFacultyId: number | null = null;
+
+  // Forms
+  courseForm!: FormGroup;
+  facultyForm!: FormGroup;
+
+  // Toast
+  toasts: Toast[] = [];
+
+  // Delete confirm
+  deleteTarget: { type: 'course' | 'faculty'; id: number; name: string } | null = null;
+
+  // Search & pagination
+  adminSearch = '';
+  currentPage = 1;
+  pageSize = 10;
+
+  // Drag sort
+  dragIndex: number | null = null;
+  dragOverIndex: number | null = null;
+
+  // Image upload
+  imageUploading = false;
+
+  // Bulk selection
+  selectedIds: Set<number> = new Set();
+  statusFilter: 'all' | 'active' | 'inactive' | 'featured' = 'all';
+
+  constructor(
+    private courseService: CourseService,
+    private auth: AuthService,
+    private router: Router,
+    private fb: FormBuilder
+  ) {}
+
+  ngOnInit(): void {
+    this.user = this.auth.getUser();
+    this.buildForms();
+    this.loadData();
+  }
+
+  buildForms(): void {
+    this.courseForm = this.fb.group({
+      faculty_id: [null], title_th: ['', Validators.required], title_en: [''],
+      degree_full_th: [''], degree_abbr_th: [''], degree_full_en: [''], degree_abbr_en: [''],
+      major: [''], degree_th: ['ปริญญาตรี'], degree_en: ['Bachelor'],
+      duration_years: [4], total_credits: [null], level: ['ป.ตรี'],
+      program_format: [''], faculty_staff: [''], faculty_staff_label: [''], faculty_staff_url: [''],
+      study_plan_url: [''], study_plan_label: [''], contact_info: [''],
+      description: [''], requirements: [''], career_path: [''],
+      image_url: [''], badge_color: ['#e53935'],
+      is_featured: [false], is_active: [true], sort_order: [0]
+    });
+    this.facultyForm = this.fb.group({
+      name_th: ['', Validators.required], name_en: [''], code: [''], description: ['']
+    });
+  }
+
+  loadData(): void {
+    this.loading = true;
+    this.courseService.getFaculties().subscribe(res => { this.faculties = res.data || []; });
+    this.courseService.getAdminCourses().subscribe({
+      next: res => { this.courses = res.data || []; this.loading = false; },
+      error: () => { this.loading = false; this.showToast('ไม่สามารถโหลดข้อมูลได้', 'error'); }
+    });
+  }
+
+  // ── DASHBOARD STATS ──
+  get statsActive(): number { return this.courses.filter(c => c.is_active).length; }
+  get statsFeatured(): number { return this.courses.filter(c => c.is_featured).length; }
+  get statsByFaculty(): { name: string; count: number }[] {
+    const map: Record<string, number> = {};
+    this.courses.forEach(c => {
+      const name = c.faculty_name_th || 'ไม่ระบุคณะ';
+      map[name] = (map[name] || 0) + 1;
+    });
+    return Object.entries(map).map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count).slice(0, 5);
+  }
+
+  // ── SEARCH & PAGINATION ──
+  get filteredAdminCourses(): Course[] {
+    let result = this.courses;
+    if (this.adminSearch.trim()) {
+      const q = this.adminSearch.toLowerCase();
+      result = result.filter(c =>
+        c.title_th.toLowerCase().includes(q) ||
+        (c.title_en || '').toLowerCase().includes(q) ||
+        (c.faculty_name_th || '').toLowerCase().includes(q)
+      );
+    }
+    if (this.statusFilter === 'active') result = result.filter(c => c.is_active);
+    if (this.statusFilter === 'inactive') result = result.filter(c => !c.is_active);
+    if (this.statusFilter === 'featured') result = result.filter(c => c.is_featured);
+    return result;
+  }
+  get totalPages(): number { return Math.max(1, Math.ceil(this.filteredAdminCourses.length / this.pageSize)); }
+  get pagedCourses(): Course[] {
+    const start = (this.currentPage - 1) * this.pageSize;
+    return this.filteredAdminCourses.slice(start, start + this.pageSize);
+  }
+  get pageNumbers(): number[] { return Array.from({ length: this.totalPages }, (_, i) => i + 1); }
+  onAdminSearch(): void { this.currentPage = 1; }
+
+  // ── DRAG SORT ──
+  onDragStart(i: number): void { this.dragIndex = i; }
+  onDragOver(e: DragEvent, i: number): void { e.preventDefault(); this.dragOverIndex = i; }
+  onDrop(e: DragEvent, dropIdx: number): void {
+    e.preventDefault();
+    if (this.dragIndex === null || this.dragIndex === dropIdx) { this.dragIndex = this.dragOverIndex = null; return; }
+    const arr = [...this.courses];
+    const [moved] = arr.splice(this.dragIndex, 1);
+    arr.splice(dropIdx, 0, moved);
+    arr.forEach((c, i) => { c.sort_order = i; });
+    this.courses = arr;
+    this.dragIndex = this.dragOverIndex = null;
+    arr.forEach((c, i) => { if (c.id) this.courseService.updateCourse(c.id, { ...c, sort_order: i }).subscribe(); });
+    this.showToast('บันทึกลำดับแล้ว', 'success');
+  }
+  onDragEnd(): void { this.dragIndex = this.dragOverIndex = null; }
+
+  // ── IMAGE UPLOAD ──
+  onImageFileChange(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    if (!input.files?.length) return;
+    const file = input.files[0];
+    if (file.size > 5 * 1024 * 1024) { this.showToast('ไฟล์ใหญ่เกิน 5MB', 'error'); return; }
+    this.imageUploading = true;
+    const reader = new FileReader();
+    reader.onload = (ev) => { this.courseForm.patchValue({ image_url: ev.target?.result }); this.imageUploading = false; };
+    reader.readAsDataURL(file);
+  }
+
+  // ── EXPORT CSV ──
+  exportCSV(): void {
+    const headers = ['id','ชื่อหลักสูตร (ไทย)','ชื่อหลักสูตร (อังกฤษ)','คณะ','ระดับ','ปี','หน่วยกิต','active','featured'];
+    const rows = this.courses.map(c => [
+      c.id, c.title_th, c.title_en || '', this.getFacultyName(c.faculty_id),
+      c.degree_th || '', c.duration_years || '', c.total_credits || '',
+      c.is_active ? 1 : 0, c.is_featured ? 1 : 0
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'courses_' + new Date().toISOString().slice(0,10) + '.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ── COURSE CRUD ──
+  openAddCourse(): void {
+    this.modalMode = 'add'; this.editingId = null; this.showPreview = false;
+    this.courseForm.reset({ degree_th: 'ปริญญาตรี', degree_en: 'Bachelor', duration_years: 4, total_credits: null, level: 'ป.ตรี', badge_color: '#e53935', is_featured: false, is_active: true, sort_order: 0 });
+    this.showModal = true;
+  }
+  openEditCourse(course: Course): void {
+    this.modalMode = 'edit'; this.editingId = course.id!; this.showPreview = false;
+    this.courseForm.patchValue({ ...course, is_featured: !!course.is_featured, is_active: !!course.is_active });
+    this.showModal = true;
+  }
+  get previewCourse(): Course {
+    const v = this.courseForm.value;
+    return { ...v, faculty_name_th: this.faculties.find(f => f.id == v.faculty_id)?.name_th || '' };
+  }
+  duplicateCourse(course: Course): void {
+    const copy = { ...course };
+    delete copy.id;
+    copy.title_th = 'สำเนา — ' + copy.title_th;
+    copy.is_active = false;
+    copy.is_featured = false;
+    copy.sort_order = 0;
+    this.modalMode = 'add';
+    this.editingId = null;
+    this.showPreview = false;
+    this.courseForm.reset({
+      degree_th: 'ปริญญาตรี', degree_en: 'Bachelor',
+      duration_years: 4, total_credits: null,
+      level: 'ป.ตรี', badge_color: '#e53935',
+      is_featured: false, is_active: false, sort_order: 0
+    });
+    this.courseForm.patchValue({ ...copy });
+    this.showModal = true;
+  }
+
+  // ── BULK ACTIONS ──
+  toggleSelectAll(): void {
+    if (this.selectedIds.size === this.pagedCourses.length) {
+      this.selectedIds = new Set();
+    } else {
+      this.selectedIds = new Set(this.pagedCourses.map(c => c.id!).filter(Boolean));
+    }
+  }
+
+  toggleSelect(id: number): void {
+    if (this.selectedIds.has(id)) this.selectedIds.delete(id);
+    else this.selectedIds.add(id);
+    this.selectedIds = new Set(this.selectedIds);
+  }
+
+  bulkSetActive(active: boolean): void {
+    const ids = Array.from(this.selectedIds);
+    ids.forEach(id => {
+      const c = this.courses.find(x => x.id === id);
+      if (c) this.courseService.updateCourse(id, { ...c, is_active: active }).subscribe();
+    });
+    this.selectedIds = new Set();
+    setTimeout(() => this.loadData(), 400);
+    this.showToast(`อัปเดต ${ids.length} รายการแล้ว`, 'success');
+  }
+
+  clearSelection(): void { this.selectedIds = new Set(); }
+
+  bulkDelete(): void {
+    if (!confirm(`ลบ ${this.selectedIds.size} หลักสูตร? ไม่สามารถย้อนกลับได้`)) return;
+    const ids = Array.from(this.selectedIds);
+    ids.forEach(id => this.courseService.deleteCourse(id).subscribe());
+    this.selectedIds = new Set();
+    setTimeout(() => this.loadData(), 400);
+    this.showToast(`ลบ ${ids.length} รายการแล้ว`, 'success');
+  }
+
+  saveCourse(): void {
+    if (this.courseForm.invalid) return;
+    const obs = this.modalMode === 'add'
+      ? this.courseService.createCourse(this.courseForm.value)
+      : this.courseService.updateCourse(this.editingId!, this.courseForm.value);
+    obs.subscribe({
+      next: res => { if (res.success) { this.showModal = false; this.showToast(this.modalMode === 'add' ? 'เพิ่มหลักสูตรสำเร็จ' : 'แก้ไขหลักสูตรสำเร็จ', 'success'); this.loadData(); } },
+      error: () => this.showToast('เกิดข้อผิดพลาด', 'error')
+    });
+  }
+  confirmDelete(type: 'course' | 'faculty', id: number, name: string): void { this.deleteTarget = { type, id, name }; }
+  doDelete(): void {
+    if (!this.deleteTarget) return;
+    const { type, id } = this.deleteTarget; this.deleteTarget = null;
+    const obs = type === 'course' ? this.courseService.deleteCourse(id) : this.courseService.deleteFaculty(id);
+    obs.subscribe({
+      next: () => {
+        if (type === 'course') {
+          this.courses = this.courses.filter(c => c.id !== id);
+          this.selectedIds.delete(id);
+          this.selectedIds = new Set(this.selectedIds);
+        } else {
+          this.faculties = this.faculties.filter(f => f.id !== id);
+        }
+        this.showToast(type === 'course' ? 'ลบหลักสูตรสำเร็จ' : 'ลบคณะสำเร็จ', 'success');
+      },
+      error: () => this.showToast('เกิดข้อผิดพลาด', 'error')
+    });
+  }
+
+  // ── FACULTY CRUD ──
+  openAddFaculty(): void { this.facultyModalMode = 'add'; this.editingFacultyId = null; this.facultyForm.reset(); this.showFacultyModal = true; }
+  openEditFaculty(faculty: Faculty): void { this.facultyModalMode = 'edit'; this.editingFacultyId = faculty.id!; this.facultyForm.patchValue(faculty); this.showFacultyModal = true; }
+  saveFaculty(): void {
+    if (this.facultyForm.invalid) return;
+    const obs = this.facultyModalMode === 'add'
+      ? this.courseService.createFaculty(this.facultyForm.value)
+      : this.courseService.updateFaculty(this.editingFacultyId!, this.facultyForm.value);
+    obs.subscribe({
+      next: res => { if (res.success) { this.showFacultyModal = false; this.showToast(this.facultyModalMode === 'add' ? 'เพิ่มคณะสำเร็จ' : 'แก้ไขคณะสำเร็จ', 'success'); this.loadData(); } },
+      error: () => this.showToast('เกิดข้อผิดพลาด', 'error')
+    });
+  }
+
+  // ── UTILS ──
+  getCourseCountByFaculty(facultyId: number | undefined): number { return this.courses.filter(c => c.faculty_id === facultyId).length; }
+  getFacultyName(id: number | null | undefined): string {
+    if (!id) return '-';
+    return this.faculties.find(f => f.id === id)?.name_th || '-';
+  }
+  onImgError(e: Event): void { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=80&q=60'; }
+  logout(): void { this.auth.logout(); this.router.navigate(['/login']); }
+  showToast(message: string, type: 'success' | 'error'): void {
+    const t: Toast = { message, type };
+    this.toasts.push(t);
+    setTimeout(() => { this.toasts = this.toasts.filter(x => x !== t); }, 3500);
+  }
+}

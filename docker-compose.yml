@@ -1,0 +1,83 @@
+import { Injectable } from '@angular/core';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
+import { Course, Faculty, ApiResponse } from '../models/course.model';
+import { AuthService } from './auth.service';
+
+@Injectable({ providedIn: 'root' })
+export class CourseService {
+  private apiUrl = environment.apiUrl;
+
+  constructor(private http: HttpClient, private auth: AuthService) {}
+
+  private authHeaders(): HttpHeaders {
+    return new HttpHeaders({ Authorization: `Bearer ${this.auth.getToken()}` });
+  }
+
+  // Public endpoints
+  getCourses(facultyId?: number, featured?: boolean): Observable<ApiResponse<Course[]>> {
+    let url = `${this.apiUrl}/courses`;
+    const params: string[] = [];
+    if (facultyId) params.push(`faculty_id=${facultyId}`);
+    if (featured) params.push('featured=1');
+    if (params.length) url += '?' + params.join('&');
+    return this.http.get<ApiResponse<Course[]>>(url);
+  }
+
+  getCourse(id: number): Observable<ApiResponse<Course>> {
+    return this.http.get<ApiResponse<Course>>(`${this.apiUrl}/courses/${id}`);
+  }
+
+  getFaculties(): Observable<ApiResponse<Faculty[]>> {
+    return this.http.get<ApiResponse<Faculty[]>>(`${this.apiUrl}/faculties`);
+  }
+
+  // Admin endpoints
+  getAdminCourses(): Observable<ApiResponse<Course[]>> {
+    return this.http.get<ApiResponse<Course[]>>(`${this.apiUrl}/admin/courses`, {
+      headers: this.authHeaders()
+    });
+  }
+
+  createCourse(course: Course): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/courses`, course, {
+      headers: this.authHeaders()
+    });
+  }
+
+  updateCourse(id: number, course: Course): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>(`${this.apiUrl}/courses/${id}`, course, {
+      headers: this.authHeaders()
+    });
+  }
+
+  deleteCourse(id: number): Observable<ApiResponse<any>> {
+    return this.http.delete<ApiResponse<any>>(`${this.apiUrl}/courses/${id}`, {
+      headers: this.authHeaders()
+    });
+  }
+
+  createFaculty(faculty: Faculty): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/faculties`, faculty, {
+      headers: this.authHeaders()
+    });
+  }
+
+  updateFaculty(id: number, faculty: Faculty): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>(`${this.apiUrl}/faculties/${id}`, faculty, {
+      headers: this.authHeaders()
+    });
+  }
+
+  deleteFaculty(id: number): Observable<ApiResponse<any>> {
+    return this.http.delete<ApiResponse<any>>(`${this.apiUrl}/faculties/${id}`, {
+      headers: this.authHeaders()
+    });
+  }
+
+  getStats(): Observable<ApiResponse<any>> {
+    return this.http.get<ApiResponse<any>>(`${this.apiUrl}/stats`);
+  }
+
+}

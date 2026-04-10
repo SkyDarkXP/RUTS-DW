@@ -1,0 +1,83 @@
+<div class="dashboard">
+  <!-- Stats Row -->
+  <div class="stats-row">
+    <div class="stat-card total">
+      <div class="stat-val">{{ stats.total }}</div>
+      <div class="stat-label">หลักสูตรทั้งหมด</div>
+    </div>
+    <div class="stat-card active">
+      <div class="stat-val">{{ stats.active }}</div>
+      <div class="stat-label">เปิดใช้งาน</div>
+    </div>
+    <div class="stat-card inactive">
+      <div class="stat-val">{{ stats.inactive }}</div>
+      <div class="stat-label">ปิดใช้งาน</div>
+    </div>
+    <div class="stat-card featured">
+      <div class="stat-val">{{ stats.featured }}</div>
+      <div class="stat-label">หลักสูตรแนะนำ</div>
+    </div>
+    <div class="stat-card faculties">
+      <div class="stat-val">{{ stats.faculties }}</div>
+      <div class="stat-label">คณะ</div>
+    </div>
+  </div>
+
+  <!-- Two-column content -->
+  <div class="dashboard-grid">
+
+    <!-- Recent updates -->
+    <div class="dash-card">
+      <div class="dash-card-header">
+        <h3>อัปเดตล่าสุด</h3>
+        <span class="dash-badge">5 รายการ</span>
+      </div>
+      <div class="recent-list">
+        <div class="recent-item" *ngFor="let c of recentCourses">
+          <div class="recent-dot" [class.active]="c.is_active !== 0 && c.is_active !== false"></div>
+          <div class="recent-body">
+            <p class="recent-title">{{ c.title_th }}</p>
+            <p class="recent-meta">{{ c.faculty_name_th || 'ไม่ระบุคณะ' }}</p>
+          </div>
+          <span class="recent-badge" [class.featured]="c.is_featured !== 0 && c.is_featured !== false">
+            {{ (c.is_featured !== 0 && c.is_featured !== false) ? '★ แนะนำ' : c.is_active !== 0 ? 'เปิด' : 'ปิด' }}
+          </span>
+        </div>
+        <div class="empty-recent" *ngIf="recentCourses.length === 0">ยังไม่มีข้อมูล</div>
+      </div>
+    </div>
+
+    <!-- Courses by Faculty -->
+    <div class="dash-card">
+      <div class="dash-card-header">
+        <h3>หลักสูตรตามคณะ</h3>
+      </div>
+      <div class="faculty-bars">
+        <div class="faculty-bar-item" *ngFor="let fb of coursesByFaculty">
+          <div class="fb-header">
+            <span class="fb-name">{{ fb.name }}</span>
+            <span class="fb-count">{{ fb.count }}</span>
+          </div>
+          <div class="fb-track">
+            <div class="fb-fill" [style.width]="fb.pct + '%'"></div>
+          </div>
+        </div>
+        <div class="empty-recent" *ngIf="coursesByFaculty.length === 0">ยังไม่มีข้อมูล</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Quick links -->
+  <div class="quick-links">
+    <a href="http://localhost:4200/" target="_blank" class="ql-btn">
+      <span>🌐</span> ดูหน้าผู้ใช้
+    </a>
+    <a href="http://localhost:1880/nodered" target="_blank" class="ql-btn">
+      <span>⚙️</span> Node-RED Editor
+    </a>
+    <a href="http://localhost:8080" target="_blank" class="ql-btn">
+      <span>🗄️</span> phpMyAdmin
+    </a>
+  </div>
+</div>

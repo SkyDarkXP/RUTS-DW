@@ -1,0 +1,262 @@
+/* ── Variables ── */
+$slide-w: min(22vw, 280px);
+$slide-aspect: 2 / 3;
+$dur: 700ms;
+$ease: cubic-bezier(0.4, 0, 0.2, 1);
+$gap: 1.1;
+
+@media (max-width: 768px) {
+  $slide-w: 58vw;
+}
+
+/* ── Container ── */
+.ps-slider {
+  position: relative;
+  width: 100%;
+  height: 340px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 16px;
+
+  @media (max-width: 768px) {
+    height: 300px;
+  }
+}
+
+/* ── Blurred BG ── */
+.ps-bg {
+  position: absolute;
+  inset: -20%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(18px) brightness(0.4);
+  transition: background-image $dur $ease;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ── Stage (holds all 3 slides) ── */
+.ps-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+/* ── Base slide ── */
+.ps-slide {
+  position: absolute;
+  width: $slide-w;
+  aspect-ratio: $slide-aspect;
+  perspective: 800px;
+  transition: transform $dur $ease, opacity $dur $ease, z-index 0s;
+  will-change: transform;
+  user-select: none;
+
+  @media (max-width: 768px) {
+    width: 58vw;
+  }
+}
+
+/* CURRENT */
+.ps-slide--current {
+  transform: perspective(1000px) translate3d(0, 0, 0) scale(1.18);
+  z-index: 20;
+  pointer-events: auto;
+}
+
+/* PREVIOUS */
+.ps-slide--prev {
+  transform: perspective(1000px) translate3d(calc(-1 * #{$slide-w} * #{$gap}), 0, 0) rotateY(45deg) scale(1);
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0.85;
+
+  @media (max-width: 768px) {
+    transform: perspective(1000px) translate3d(calc(-1 * 58vw * 1.1), 0, 0) rotateY(25deg) scale(1);
+  }
+}
+
+/* NEXT */
+.ps-slide--next {
+  transform: perspective(1000px) translate3d(calc(1 * #{$slide-w} * #{$gap}), 0, 0) rotateY(-45deg) scale(1);
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0.85;
+
+  @media (max-width: 768px) {
+    transform: perspective(1000px) translate3d(calc(1 * 58vw * 1.1), 0, 0) rotateY(-25deg) scale(1);
+  }
+}
+
+/* ── Inner (tilt target) ── */
+.ps-slide__inner {
+  --rotX: 0deg;
+  --rotY: 0deg;
+  --bgPosX: 0%;
+  --bgPosY: 0%;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform: rotateX(var(--rotX)) rotateY(var(--rotY));
+}
+
+/* ── Image ── */
+.ps-img-wrap {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.ps-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(1.25) translate3d(var(--bgPosX), var(--bgPosY), 0);
+  transition: filter $dur $ease;
+
+  .ps-slide--current & { filter: brightness(0.82); }
+  .ps-slide--prev &,
+  .ps-slide--next & { filter: brightness(0.45); }
+}
+
+/* ── Info text (only on current) ── */
+.ps-info {
+  position: absolute;
+  bottom: 0;
+  left: -14%;
+  width: 130%;
+  pointer-events: none;
+  z-index: 5;
+  transform-style: preserve-3d;
+
+  @media (max-width: 768px) {
+    left: 0;
+    width: 100%;
+    text-align: center;
+    bottom: -2px;
+  }
+}
+
+.ps-info__inner {
+  transform: translateZ(40px);
+  padding-bottom: 12px;
+}
+
+.ps-text {
+  font-family: 'Clash Display', 'Archivo', sans-serif;
+  color: #fff;
+  overflow: hidden;
+
+  span {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 260px;
+    transition: opacity $dur $ease, transform $dur $ease;
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    transition-delay: 220ms;
+
+    @media (max-width: 768px) {
+      max-width: 100%;
+    }
+  }
+}
+
+.ps-text--title {
+  font-size: clamp(1.1rem, 3.5cqw, 1.7rem);
+  font-weight: 800;
+  text-transform: uppercase;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.7);
+}
+
+.ps-text--subtitle {
+  font-size: clamp(0.75rem, 2cqw, 1rem);
+  font-weight: 600;
+  margin-left: 0.6rem;
+  opacity: 0.85;
+
+  @media (max-width: 768px) { margin-left: 0; }
+}
+
+.ps-text--desc {
+  font-size: clamp(0.65rem, 1.5cqw, 0.85rem);
+  font-family: 'Archivo', sans-serif;
+  font-weight: 300;
+  margin-left: 0.3rem;
+  margin-top: 4px;
+  opacity: 0.75;
+
+  @media (max-width: 768px) { margin-left: 0; }
+}
+
+/* ── Buttons ── */
+.ps-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 30;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 200ms, background 200ms;
+  backdrop-filter: blur(4px);
+
+  &:hover { opacity: 1; background: rgba(0, 0, 0, 0.55); }
+
+  svg { stroke: white; width: 18px; height: 18px; }
+
+  @media (max-width: 480px) {
+    top: auto;
+    bottom: 12px;
+    transform: none;
+    opacity: 0.5;
+  }
+}
+
+.ps-btn--prev { left: 12px; }
+.ps-btn--next { right: 12px; }
+
+/* ── Dots ── */
+.ps-dots {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  z-index: 30;
+}
+
+.ps-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  transition: background 250ms, transform 250ms;
+
+  &.ps-dot--active {
+    background: #fff;
+    transform: scale(1.35);
+  }
+}

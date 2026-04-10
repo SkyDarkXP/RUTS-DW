@@ -1,0 +1,220 @@
+import { Component, OnInit, HostListener } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
+import { CourseService } from '../../services/course.service';
+import { AuthService } from '../../services/auth.service';
+import { Course, Faculty } from '../../models/course.model';
+
+@Component({
+  selector: 'app-home',
+  templateUrl: './home.component.html',
+  styleUrls: ['./home.component.scss']
+})
+export class HomeComponent implements OnInit {
+  courses: Course[] = [];
+  faculties: Faculty[] = [];
+  filteredCourses: Course[] = [];
+  selectedCourse: Course | null = null;
+  showDetail = false;
+  loading = true;
+  searchQuery = '';
+  menuOpen = false;
+  selectedDegree = '';
+  selectedFaculty: number | null = null;
+  linkCopied = false;
+
+  // Compare
+  compareList: Course[] = [];
+  showCompare = false;
+
+  degreeOptions = ['ทั้งหมด', 'ปริญญาตรี', 'ปริญญาโท', 'ปริญญาเอก', 'ปวส.', 'ปวช.'];
+
+  constructor(
+    private courseService: CourseService,
+    public auth: AuthService,
+    private router: Router,
+    private route: ActivatedRoute
+  ) {}
+
+  ngOnInit(): void { this.loadData(); }
+
+  loadData(): void {
+    this.loading = true;
+    this.courseService.getFaculties().subscribe({
+      next: res => { this.faculties = res.data || []; },
+      error: () => {}
+    });
+    this.courseService.getCourses().subscribe({
+      next: res => {
+        this.courses = res.data || [];
+        this.applyFilters();
+        this.loading = false;
+        this.route.queryParams.subscribe(params => {
+          if (params['course']) {
+            const found = this.courses.find(c => c.id === +params['course']);
+            if (found) this.openModal(found);
+          }
+        });
+      },
+      error: () => { this.loading = false; }
+    });
+  }
+
+  get featuredCourses(): Course[] { return this.courses.filter(c => c.is_featured); }
+
+  onSearch(): void { this.applyFilters(); }
+
+  filterByDegree(degree: string): void {
+    this.selectedDegree = degree === 'ทั้งหมด' ? '' : degree;
+    this.applyFilters();
+  }
+
+  filterByFaculty(id: number | null): void {
+    this.selectedFaculty = id;
+    this.applyFilters();
+  }
+
+  applyFilters(): void {
+    let result = this.courses;
+    if (this.searchQuery.trim()) {
+      const q = this.searchQuery.toLowerCase();
+      result = result.filter(c =>
+        c.title_th.toLowerCase().includes(q) ||
+        (c.title_en || '').toLowerCase().includes(q) ||
+        (c.faculty_name_th || '').toLowerCase().includes(q)
+      );
+    }
+    if (this.selectedDegree) {
+      result = result.filter(c =>
+        (c.degree_th || '').includes(this.selectedDegree) ||
+        (c.level || '').includes(this.selectedDegree)
+      );
+    }
+    if (this.selectedFaculty !== null) {
+      result = result.filter(c => c.faculty_id === this.selectedFaculty);
+    }
+    this.filteredCourses = result;
+  }
+
+  get hasActiveFilter(): boolean {
+    return !!(this.searchQuery.trim() || this.selectedDegree || this.selectedFaculty !== null);
+  }
+
+  clearFilters(): void {
+    this.searchQuery = '';
+    this.selectedDegree = '';
+    this.selectedFaculty = null;
+    this.applyFilters();
+  }
+
+  // ── MODAL ──
+  openModal(course: Course): void {
+    this.selectedCourse = course;
+    this.showDetail = false;
+    this.linkCopied = false;
+    document.body.style.overflow = 'hidden';
+    this.router.navigate([], { queryParams: { course: course.id }, replaceUrl: true });
+  }
+
+  closeModal(): void {
+    this.selectedCourse = null;
+    this.showDetail = false;
+    document.body.style.overflow = '';
+    this.router.navigate([], { queryParams: {}, replaceUrl: true });
+  }
+
+  copyLink(): void {
+    if (!this.selectedCourse) return;
+    const url = window.location.origin + window.location.pathname + '?course=' + this.selectedCourse.id;
+    navigator.clipboard.writeText(url).then(() => {
+      this.linkCopied = true;
+      setTimeout(() => this.linkCopied = false, 2000);
+    });
+  }
+
+  // ── COMPARE ──
+  toggleCompare(course: Course): void {
+    const idx = this.compareList.findIndex(c => c.id === course.id);
+    if (idx >= 0) {
+      this.compareList = this.compareList.filter((_, i) => i !== idx);
+    } else {
+      if (this.compareList.length >= 3) {
+        this.compareList = [...this.compareList.slice(1), course];
+      } else {
+        this.compareList = [...this.compareList, course];
+      }
+    }
+  }
+
+  removeFromCompare(course: Course): void {
+    this.compareList = this.compareList.filter(c => c.id !== course.id);
+    if (this.compareList.length === 0) this.showCompare = false;
+  }
+
+  openCompare(): void { this.showCompare = true; document.body.style.overflow = 'hidden'; }
+  closeCompare(): void { this.showCompare = false; document.body.style.overflow = ''; }
+
+  getCompareField(course: Course, field: string): string {
+    const val = (course as any)[field];
+    if (val === null || val === undefined || val === '') return '—';
+    if (typeof val === 'boolean' || val === 0 || val === 1) return val ? 'ใช่' : 'ไม่';
+    return String(val);
+  }
+
+  compareFields: { label: string; key: string }[] = [
+    { label: 'ระดับปริญญา', key: 'degree_th' },
+    { label: 'ระยะเวลา', key: 'duration_years' },
+    { label: 'หน่วยกิต', key: 'total_credits' },
+    { label: 'แท็กระดับ', key: 'level' },
+    { label: 'คณะ', key: 'faculty_name_th' },
+    { label: 'คุณสมบัติ', key: 'requirements' },
+    { label: 'อาชีพ', key: 'career_path' },
+  ];
+
+  // ── UTILS ──
+  goToAdmin(): void {
+    this.auth.isLoggedIn() ? this.router.navigate(['/admin']) : this.router.navigate(['/login']);
+  }
+
+  onImgError(event: Event): void { (event.target as HTMLImageElement).style.display = 'none'; }
+
+  getCareerList(text: string | undefined): string[] {
+    if (!text) return [];
+    return text.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+  }
+
+  getProgramFormatRows(text: string | undefined): { label: string; value: string }[] {
+    if (!text) return [];
+    return text.split('\n').map(line => {
+      const idx = line.indexOf(':');
+      if (idx === -1) return { label: '', value: line.trim() };
+      return { label: line.substring(0, idx).trim(), value: line.substring(idx + 1).trim() };
+    }).filter(row => row.label || row.value);
+  }
+
+  getContactItems(text: string | undefined): { label: string; href: string; icon: string }[] {
+    if (!text) return [];
+    return text.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+      if (/^https?:\/\//i.test(line)) return { label: line, href: line, icon: '🔗' };
+      const tel = line.match(/^(tel:|โทร\.?|phone:?)\s*(.*)/i);
+      if (tel) return { label: 'โทร. ' + tel[2], href: 'tel:' + tel[2].replace(/\s/g, ''), icon: '📞' };
+      const mail = line.match(/^(mailto:|อีเมล:?|email:?)\s*(.*)/i);
+      if (mail) return { label: mail[2], href: 'mailto:' + mail[2], icon: '✉' };
+      if (/@/.test(line) && !/\s/.test(line)) return { label: line, href: 'mailto:' + line, icon: '✉' };
+      if (/^\+?[\d\s\-()]{7,}$/.test(line)) return { label: line, href: 'tel:' + line.replace(/\s/g, ''), icon: '📞' };
+      return { label: line, href: '', icon: '📍' };
+    });
+  }
+
+  @HostListener('document:keydown.escape')
+  onEsc(): void {
+    if (this.showCompare) { this.closeCompare(); return; }
+    if (this.selectedCourse) this.closeModal();
+    else this.menuOpen = false;
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocClick(event: Event): void {
+    const target = event.target as HTMLElement;
+    if (this.menuOpen && !target.closest('.nav-left')) this.menuOpen = false;
+  }
+}

@@ -1,0 +1,47 @@
+import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
+import { CourseService } from '../../services/course.service';
+import { AuthService } from '../../services/auth.service';
+import { Faculty, Course } from '../../models/course.model';
+
+@Component({
+  selector: 'app-faculties',
+  templateUrl: './faculties.component.html',
+  styleUrls: ['./faculties.component.scss']
+})
+export class FacultiesComponent implements OnInit {
+  faculties: Faculty[] = [];
+  courses: Course[] = [];
+  loading = true;
+
+  constructor(
+    private courseService: CourseService,
+    public auth: AuthService,
+    private router: Router
+  ) {}
+
+  ngOnInit(): void {
+    this.courseService.getFaculties().subscribe({
+      next: res => { this.faculties = (res.data || []).filter(f => f.is_active !== 0); }
+    });
+    this.courseService.getCourses().subscribe({
+      next: res => {
+        this.courses = res.data || [];
+        this.loading = false;
+      },
+      error: () => { this.loading = false; }
+    });
+  }
+
+  getCourseCount(facultyId: number | undefined): number {
+    return this.courses.filter(c => c.faculty_id === facultyId && c.is_active !== 0).length;
+  }
+
+  browseFaculty(faculty: Faculty): void {
+    this.router.navigate(['/search'], { queryParams: { faculty: faculty.id } });
+  }
+
+  goToAdmin(): void {
+    this.auth.isLoggedIn() ? this.router.navigate(['/admin']) : this.router.navigate(['/login']);
+  }
+}
